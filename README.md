@@ -1,26 +1,32 @@
 # Claude Notify
 
-A native macOS SwiftUI notification app for Claude Code and OpenCode. When Claude finishes a response, a frosted-glass floating panel appears with an audible chime. Clicking "Open Project" activates your editor and focuses the correct project window.
+Native macOS notifications for Claude Code and OpenCode. A lightweight SwiftUI panel appears when Claude finishes a response or needs permission -- with one click to jump to the exact editor window.
 
 **Author:** Andrew Naegele
-**Platform:** macOS 14+ (tested on macOS 26 Tahoe)
-**Design:** Frosted glass with lava/magma accent gradients
+**Platform:** macOS 14+ (Sonoma and later)
 
 ---
 
-## What You Get
+## Features
 
-- **Audible Glass chime** when Claude stops responding
-- **Floating frosted-glass panel** appears above all windows (including full-screen)
-- **"Open Project" button** activates your editor and opens the correct project window
-- **Auto-dismisses** after 30 seconds if ignored
-- **Permission alerts** with distinct Ping sound when Claude needs approval
+- **Completion alerts** with Glass chime when Claude stops responding
+- **Permission alerts** with distinct Tink sound when Claude needs approval
+- **Smart editor detection** -- automatically detects Zed, Cursor, VS Code, Windsurf, Terminal, and more
+- **One-click focus** -- brings the exact window/tab to the front, even with multiple editor instances
+- **Stacking** -- multiple notifications stack vertically, never overlap
+- **Auto-dismiss** with visual countdown bar (30 seconds)
+- **Terminal window targeting** -- uses tty matching to focus the exact Terminal.app or iTerm2 tab
 - Works with both **Claude Code** and **OpenCode**
-- **Supports:** Zed, VS Code, Cursor, Windsurf, Void, Sublime Text, Fleet, Nova, Warp
+
+### Supported Editors
+
+Zed, Cursor, VS Code, Windsurf, Void, Sublime Text, Fleet, Nova, Warp, iTerm2, WezTerm, Alacritty, Ghostty, Terminal.app
 
 ---
 
-## Install with Homebrew (recommended)
+## Install
+
+### Homebrew (recommended)
 
 ```bash
 brew tap vibe-marketer/claude-notify
@@ -28,29 +34,48 @@ brew install claude-notify
 claude-notify-setup
 ```
 
-The setup command walks you through choosing your editor and configuring Claude Code / OpenCode hooks. You only need to run it once -- future `brew upgrade claude-notify` updates the binary without re-running setup.
-
----
-
-## Manual Installation
-
-### 1. Install the binary
+### Manual
 
 ```bash
+# Build from source
+swift build -c release
+
+# Install binary
 mkdir -p ~/.local/bin
-cp bin/claude-notify ~/.local/bin/claude-notify
+cp .build/release/claude-notify ~/.local/bin/
 chmod +x ~/.local/bin/claude-notify
-```
 
-### 2. Run setup
-
-```bash
+# Run setup
 ./bin/claude-notify-setup
 ```
 
-This installs the hook script, patches your settings, and lets you pick your editor.
+The setup script installs hook scripts and patches your Claude Code / OpenCode settings. Run it once -- future updates to the binary don't require re-running setup.
 
-### 3. Restart Claude Code / OpenCode
+---
+
+## How It Works
+
+1. Claude Code / OpenCode fires the **Stop** hook when it finishes a response
+2. The hook script detects the runtime (Claude vs OpenCode) and editor (Zed, Cursor, Terminal, etc.)
+3. It grabs the tty device from the parent process for terminal window targeting
+4. The SwiftUI binary renders a floating panel at `NSPanel.level.screenSaver` (above everything)
+5. `afplay` plays an audible chime in the background
+6. Clicking the action button activates the correct editor and focuses the right window
+7. The panel auto-dismisses after 30 seconds with a visual countdown
+
+### Editor Detection
+
+The hook script uses three strategies in order:
+
+1. **IDE lock files** (`~/.claude/ide/*.lock`) -- Claude Code creates these with `ideName` and `workspaceFolders`. Matched by comparing the session's working directory.
+2. **Process tree walk** -- walks up the parent process chain looking for known editor process names (Zed, Cursor, etc.)
+3. **`TERM_PROGRAM` env var** -- identifies the terminal emulator for standalone CLI sessions
+
+### Window Focusing
+
+- **Code editors** (Zed, Cursor, VS Code, etc.): Activated via AppleScript, then the editor's CLI command opens/focuses the project path
+- **Terminal.app**: AppleScript iterates all windows/tabs, matches by tty device, brings the exact tab to front
+- **iTerm2**: Same approach using iTerm2's AppleScript dictionary (windows > tabs > sessions)
 
 ---
 
@@ -58,62 +83,29 @@ This installs the hook script, patches your settings, and lets you pick your edi
 
 ```
 claude-notify/
-  README.md                     -- This file
-  Package.swift                 -- Swift package manifest
+  Package.swift              Swift package manifest
   Sources/
-    main.swift                  -- Full SwiftUI source code
+    main.swift               SwiftUI notification app
   bin/
-    claude-notify               -- Pre-built macOS arm64 binary
-    claude-notify-setup         -- Interactive setup script
+    claude-notify-setup      Interactive setup script
   hooks/
-    notify-complete.sh          -- Hook script (launches the binary)
-```
-
----
-
-## Building from Source
-
-If you need to rebuild (e.g., for a different architecture or macOS version):
-
-```bash
-swift build -c release
-cp .build/release/claude-notify ~/.local/bin/claude-notify
+    notify-complete.sh       Hook script (detects editor, launches binary)
 ```
 
 ---
 
 ## Configuration
 
-### Editor
+### Sounds
 
-Your editor preference is stored in `~/.config/claude-notify/config`.
-
-**Single editor** -- one "Open Project" button:
-```
-EDITOR=zed
-```
-
-**Multiple editors** -- a button for each in the notification panel:
-```
-EDITORS=zed,vscode,warp
-```
-
-Supported values: `zed`, `vscode`, `cursor`, `windsurf`, `void`, `sublime`, `fleet`, `nova`, `warp`
-
-To change your editors, either edit the file directly or re-run `claude-notify-setup`.
-
-### Sound
-
-Edit `Sources/main.swift` -- find the `afplay` line near the bottom and change the sound file:
+Edit `Sources/main.swift` and change the `afplay` sound files:
+- Completion: `Glass.aiff` (default)
+- Permission: `Tink.aiff` (default)
 - Available: `Basso`, `Blow`, `Bottle`, `Frog`, `Funk`, `Glass`, `Hero`, `Morse`, `Ping`, `Pop`, `Purr`, `Sosumi`, `Submarine`, `Tink`
 
 ### Auto-dismiss timeout
 
 Edit `Sources/main.swift` -- find `withTimeInterval: 30` and change the value (seconds).
-
-### Panel position
-
-Edit `Sources/main.swift` -- find the screen positioning block and adjust the `x` and `y` calculations.
 
 ---
 
@@ -122,35 +114,16 @@ Edit `Sources/main.swift` -- find the screen positioning block and adjust the `x
 **Homebrew:**
 ```bash
 brew uninstall claude-notify
-rm -rf ~/.config/claude-notify
+brew untap vibe-marketer/claude-notify
 rm ~/.claude/hooks/notify-complete.sh
 rm ~/.config/opencode/hooks/notify-complete.sh
 ```
 
-**Manual:**
-```bash
-rm ~/.local/bin/claude-notify
-rm ~/.local/bin/claude-notify-setup
-rm -rf ~/.config/claude-notify
-rm ~/.claude/hooks/notify-complete.sh
-rm ~/.config/opencode/hooks/notify-complete.sh
-```
-
-Then remove the `Stop` and `Notification` entries from your settings.json files.
-
----
-
-## How It Works
-
-1. Claude Code / OpenCode fires the **Stop** hook when it finishes a response
-2. The hook script reads the working directory from the hook's JSON stdin
-3. It launches `claude-notify` with runtime name, project name, and path as arguments
-4. The SwiftUI app renders a borderless floating panel at `NSPanel.level.screenSaver` (above everything)
-5. `afplay` plays the Glass chime in the background
-6. Clicking "Open Project" activates your configured editor and opens the project
-7. The app terminates after the action or 30-second timeout
+Then remove the `Stop` and `Notification` entries from:
+- `~/.claude/settings.json`
+- `~/.config/opencode/settings.json`
 
 ---
 
 (c) 2026 Andrew Naegele | All Rights Reserved
-@andrew_naegele -- https://x.com/andrew_naegele
+[@andrew_naegele](https://x.com/andrew_naegele)
