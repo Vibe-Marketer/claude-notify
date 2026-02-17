@@ -9,12 +9,15 @@ Native macOS notifications for Claude Code and OpenCode. A lightweight SwiftUI p
 
 ## Features
 
-- **Completion alerts** with Glass chime when Claude stops responding
-- **Permission alerts** with distinct Tink sound when Claude needs approval
+- **Smart focus detection** -- only plays a chime when your editor is focused, shows full popup when you're away
+- **Completion alerts** with configurable chime when Claude stops responding
+- **Permission alerts** with distinct sound when Claude needs approval
+- **Settings UI** -- configure sounds, timeouts, and notification behavior from a native settings window
+- **14 macOS system sounds** to choose from (Glass, Tink, Ping, Pop, and more)
 - **Smart editor detection** -- automatically detects Zed, Cursor, VS Code, Windsurf, Terminal, and more
 - **One-click focus** -- brings the exact window/tab to the front, even with multiple editor instances
 - **Stacking** -- multiple notifications stack vertically, never overlap
-- **Auto-dismiss** with visual countdown bar (30 seconds)
+- **Auto-dismiss** with visual countdown bar (configurable: 10s to 5min, or persist until dismissed)
 - **Terminal window targeting** -- uses tty matching to focus the exact Terminal.app or iTerm2 tab
 - Works with both **Claude Code** and **OpenCode**
 
@@ -58,10 +61,11 @@ The setup script installs hook scripts and patches your Claude Code / OpenCode s
 1. Claude Code / OpenCode fires the **Stop** hook when it finishes a response
 2. The hook script detects the runtime (Claude vs OpenCode) and editor (Zed, Cursor, Terminal, etc.)
 3. It grabs the tty device from the parent process for terminal window targeting
-4. The SwiftUI binary renders a floating panel at `NSPanel.level.screenSaver` (above everything)
-5. `afplay` plays an audible chime in the background
-6. Clicking the action button activates the correct editor and focuses the right window
-7. The panel auto-dismisses after 30 seconds with a visual countdown
+4. The binary checks if your editor is the frontmost app via `NSWorkspace`
+5. **If editor is focused:** plays a chime sound only (no popup -- you're already looking at it)
+6. **If editor is NOT focused:** renders a floating SwiftUI panel AND plays the chime
+7. Clicking the action button activates the correct editor and focuses the right window
+8. The panel auto-dismisses after the configured timeout with a visual countdown
 
 ### Editor Detection
 
@@ -96,16 +100,36 @@ claude-notify/
 
 ## Configuration
 
-### Sounds
+### Settings UI
 
-Edit `Sources/main.swift` and change the `afplay` sound files:
-- Completion: `Glass.aiff` (default)
-- Permission: `Tink.aiff` (default)
-- Available: `Basso`, `Blow`, `Bottle`, `Frog`, `Funk`, `Glass`, `Hero`, `Morse`, `Ping`, `Pop`, `Purr`, `Sosumi`, `Submarine`, `Tink`
+Open the settings window:
 
-### Auto-dismiss timeout
+```bash
+claude-notify --settings
+```
 
-Edit `Sources/main.swift` -- find `withTimeInterval: 30` and change the value (seconds).
+From here you can configure:
+
+- **Focus behavior** -- enable/disable focus detection, toggle chime-only mode when editor is focused
+- **Sounds** -- pick from 14 macOS system sounds for completion and permission events (with preview)
+- **Display** -- enable/disable popup notifications, set auto-dismiss timeout (10s to 5min, or never)
+- **Test** -- preview completion and permission sounds with one click
+
+Settings are stored in macOS UserDefaults (`com.naegele.claude-notify`) and persist across updates.
+
+### Defaults
+
+| Setting | Default |
+|---------|---------|
+| Completion sound | Glass |
+| Permission sound | Tink |
+| Auto-dismiss | 30 seconds |
+| Focus detection | Enabled |
+| Chime-only when focused | Enabled |
+
+### Available Sounds
+
+`Basso`, `Blow`, `Bottle`, `Frog`, `Funk`, `Glass`, `Hero`, `Morse`, `Ping`, `Pop`, `Purr`, `Sosumi`, `Submarine`, `Tink`
 
 ---
 
