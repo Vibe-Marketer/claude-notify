@@ -936,33 +936,39 @@ extension ColorTheme {
         let glassTrack: Color
 
         if isDark {
-            // ── Dark glass: smoky, deep, rich tint ──
-            glassSurface = Color(white: 0.06)
-            glassSurfaceOpacity = 0.32
+            // ── Dark glass: Apple Control Center style ──
+            // Minimal surface fill — let the blur do the work.
+            // .hudWindow gives the right smoky translucency.
+            glassSurface = Color(white: 0.10)
+            glassSurfaceOpacity = 0.12           // Very subtle — mostly blur
             glassMaterial = .hudWindow
-            tintOpacity = 0.12
-            refractionStrength = 0.22    // Stronger specular — needs contrast on dark
-            glassTextPrimary = Color.white.opacity(0.94)
-            glassTextSecondary = Color.white.opacity(0.58)
-            glassTextTertiary = Color.white.opacity(0.32)
-            glassSecBtnBg = Color.white.opacity(0.08)
-            glassSecBtnBorder = Color.white.opacity(0.20)
-            glassBorder = [Color.white.opacity(0.25), Color.white.opacity(0.08), Color.clear]
-            glassTrack = Color.white.opacity(0.10)
+            tintOpacity = 0.05                   // Barely-there theme tint
+            refractionStrength = 0.10            // Gentle specular, not flashy
+            glassTextPrimary = Color.white
+            glassTextSecondary = Color.white.opacity(0.88)
+            glassTextTertiary = Color.white.opacity(0.65)
+            glassSecBtnBg = Color.white.opacity(0.22)
+            glassSecBtnBorder = Color.white.opacity(0.45)
+            // Strong 3D emboss border
+            glassBorder = [Color.white.opacity(0.55), Color.white.opacity(0.20), Color.black.opacity(0.15)]
+            glassTrack = Color.white.opacity(0.15)
         } else {
-            // ── Light glass: bright, frosty, airy ──
-            glassSurface = Color(white: 0.98)
-            glassSurfaceOpacity = 0.50
-            glassMaterial = .sheet
-            tintOpacity = 0.07
-            refractionStrength = 0.15    // Softer on light — surface is already bright
-            glassTextPrimary = Color(white: 0.08)
-            glassTextSecondary = Color(white: 0.32)
-            glassTextTertiary = Color(white: 0.48)
-            glassSecBtnBg = Color.black.opacity(0.05)
-            glassSecBtnBorder = Color.black.opacity(0.12)
-            glassBorder = [Color.white.opacity(0.75), Color.white.opacity(0.35), Color.clear]
-            glassTrack = Color.black.opacity(0.08)
+            // ── Light glass: Apple Control Center style (light mode) ──
+            // .underWindowBackground is the most translucent light material.
+            // Minimal surface fill so the frosted blur dominates.
+            glassSurface = Color(white: 0.94)
+            glassSurfaceOpacity = 0.08           // Near-zero — let blur dominate
+            glassMaterial = .hudWindow
+            tintOpacity = 0.03
+            refractionStrength = 0.06
+            glassTextPrimary = Color.black
+            glassTextSecondary = Color.black.opacity(0.70)
+            glassTextTertiary = Color.black.opacity(0.50)
+            glassSecBtnBg = Color.black.opacity(0.08)
+            glassSecBtnBorder = Color.black.opacity(0.20)
+            // Strong 3D emboss: bright top → mid → dark bottom
+            glassBorder = [Color.white.opacity(0.90), Color.white.opacity(0.30), Color.black.opacity(0.20)]
+            glassTrack = Color.black.opacity(0.10)
         }
 
         // Accent text needs to contrast with the accent background, same as base theme
@@ -979,14 +985,14 @@ extension ColorTheme {
             accent: accent,
             accentSecondary: accentSecondary,
             accentText: glassAccentText,
-            primaryButtonBg: [accent.opacity(isDark ? 0.85 : 0.90), accentSecondary.opacity(isDark ? 0.85 : 0.90)],
+            primaryButtonBg: [accent, accentSecondary],  // Full saturation buttons
             secondaryButtonBg: glassSecBtnBg,
             secondaryButtonBorder: glassSecBtnBorder,
             secondaryButtonText: glassTextPrimary,
             borderGradient: glassBorder,
             overlayGradient: [tint.opacity(tintOpacity), Color.clear],
             indicatorGlow: indicatorGlow,
-            borderWidth: 0.5,
+            borderWidth: 1.0,  // Thicker border for visible 3D emboss
             trackBg: glassTrack,
             statusComplete: statusComplete,
             statusPermission: statusPermission,
@@ -1797,17 +1803,29 @@ struct TimerBar: View {
     var barHeight: CGFloat = 2
     @State private var progress: CGFloat = 1.0
 
+    private let laserRed = Color(red: 1.0, green: 0.10, blue: 0.10)
+    private let laserSize: CGFloat = 5
+
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
+                // Track
                 Capsule(style: .continuous)
                     .fill(theme.isCustom ? theme.trackBg : Color.trackBg.opacity(0.5))
                     .frame(height: barHeight)
 
+                // Progress fill — bright red
                 Capsule(style: .continuous)
-                    .fill(timerFill)
+                    .fill(laserRed)
                     .frame(width: max(geo.size.width * progress, 2), height: barHeight)
-                    .shadow(color: theme.isCustom ? theme.accent.opacity(0.4) : .clear, radius: 4, x: 0, y: 0)
+
+                // Laser pointer dot at the leading edge of remaining progress
+                Circle()
+                    .fill(laserRed)
+                    .frame(width: laserSize, height: laserSize)
+                    .shadow(color: laserRed.opacity(0.9), radius: 6, x: 0, y: 0)
+                    .shadow(color: laserRed.opacity(0.5), radius: 12, x: 0, y: 0)
+                    .offset(x: max(geo.size.width * progress - laserSize / 2, 0))
             }
             .onAppear {
                 withAnimation(.linear(duration: totalDuration)) {
@@ -1815,21 +1833,7 @@ struct TimerBar: View {
                 }
             }
         }
-        .frame(height: barHeight)
-    }
-
-    private var timerFill: some ShapeStyle {
-        if theme.isCustom {
-            return AnyShapeStyle(
-                LinearGradient(
-                    colors: [theme.accent, theme.accentSecondary],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-        } else {
-            return AnyShapeStyle(Color(nsColor: .tertiaryLabelColor))
-        }
+        .frame(height: max(barHeight, laserSize))
     }
 }
 
@@ -1846,8 +1850,8 @@ struct TrafficLightClose: View {
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color(red: 1.0, green: 0.40, blue: 0.35),
-                                Color(red: 1.0, green: 0.27, blue: 0.23),
+                                Color(red: 1.0, green: 0.35, blue: 0.30),
+                                Color(red: 0.95, green: 0.20, blue: 0.15),
                             ],
                             startPoint: .top,
                             endPoint: .bottom
@@ -1856,7 +1860,7 @@ struct TrafficLightClose: View {
                     .frame(width: 14, height: 14)
 
                 Circle()
-                    .strokeBorder(Color(red: 0.87, green: 0.19, blue: 0.17).opacity(0.5), lineWidth: 0.5)
+                    .strokeBorder(Color(red: 0.80, green: 0.12, blue: 0.10).opacity(0.6), lineWidth: 0.5)
                     .frame(width: 14, height: 14)
 
                 if isHovered {
@@ -1923,107 +1927,55 @@ struct NotificationView: View {
         let bgOpacity = Settings.shared.panelOpacity
         let d = design
 
-        if d.isGlass {
-            // ── Liquid Glass: 6-layer stack mimicking real frosted glass ──
+        // For glass/vibrancy: the NSVisualEffectView is at the PANEL level
+        // (as panel.contentView). The SwiftUI background only draws tint/specular/border
+        // overlays on top of the real blur. No VibrancyView here.
+        //
+        // For opaque themes: no panel-level blur, so SwiftUI draws the full surface.
+        //
+        // bgOpacity is handled at the panel level (visualEffect.alphaValue) for
+        // glass/vibrancy. For opaque themes it's applied here.
+
+        if d.isGlass || d.useVibrancy {
+            // ── Glass / Vibrancy: shiny 3D emboss border all around ──
             ZStack {
-                // Layer 1: Background blur — samples and blurs content behind the window
-                VibrancyView(material: d.vibrancyMaterial, blendingMode: .behindWindow, cornerRadius: cr)
-
-                // Layer 2: Tinted surface — gives the glass "substance" and depth
-                RoundedRectangle(cornerRadius: cr, style: .continuous)
-                    .fill(d.surface.opacity(d.surfaceOpacity * bgOpacity))
-
-                // Layer 3: Theme tint wash — chromatic identity (coral = warm, indigo = cool)
-                RoundedRectangle(cornerRadius: cr, style: .continuous)
-                    .fill(d.glassTint.opacity(d.glassTintOpacity))
-
-                // Layer 4: Specular highlight — the key "glass" effect
-                // Simulates overhead ambient light refracting through the top edge.
-                // Sharp falloff (top 30%) — a long gradient looks like tint, not reflection.
-                RoundedRectangle(cornerRadius: cr, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(d.glassRefractionStrength),
-                                Color.white.opacity(d.glassRefractionStrength * 0.35),
-                                Color.white.opacity(d.glassRefractionStrength * 0.08),
-                                Color.clear,
-                            ],
-                            startPoint: .top,
-                            endPoint: UnitPoint(x: 0.5, y: 0.30)
-                        )
-                    )
-
-                // Layer 5: Inner ambient glow — glass picking up accent color from environment
-                RoundedRectangle(cornerRadius: cr, style: .continuous)
-                    .fill(
-                        RadialGradient(
-                            colors: [d.accent.opacity(0.06), Color.clear],
-                            center: .topLeading,
-                            startRadius: 0,
-                            endRadius: 180
-                        )
-                    )
-
-                // Layer 5b: Inner shadow at bottom — depth cue, glass has thickness
-                RoundedRectangle(cornerRadius: cr, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.clear, Color.clear, Color.black.opacity(0.04)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-
-                // Layer 6: Edge border — crisp 0.5pt rim, brighter at top (catches light)
+                // Bright highlight border — visible shine all around, strongest at top
                 RoundedRectangle(cornerRadius: cr, style: .continuous)
                     .strokeBorder(
                         LinearGradient(
-                            colors: d.borderGradient,
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: d.borderWidth
-                    )
-            }
-        } else if d.useVibrancy {
-            // ── System vibrancy (light or dark, system theme) ──
-            ZStack {
-                VibrancyView(material: d.vibrancyMaterial, blendingMode: .behindWindow, cornerRadius: cr)
-                    .opacity(1.0 - bgOpacity * 0.7)
-
-                RoundedRectangle(cornerRadius: cr, style: .continuous)
-                    .fill(d.surface.opacity(bgOpacity))
-
-                RoundedRectangle(cornerRadius: cr, style: .continuous)
-                    .fill(
-                        LinearGradient(
                             colors: [
-                                Color.white.opacity(0.20 * (1.0 - bgOpacity * 0.5)),
-                                Color.white.opacity(0.06),
-                                Color.clear,
+                                Color.white.opacity(0.95),   // Bright shine at top
+                                Color.white.opacity(0.40),   // Visible on sides
+                                Color.white.opacity(0.25),   // Still visible at bottom
                             ],
                             startPoint: .top,
-                            endPoint: UnitPoint(x: 0.5, y: 0.45)
-                        )
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 1.0
                     )
-
-                RoundedRectangle(cornerRadius: cr, style: .continuous)
+                // Subtle outer shadow — just enough depth at the bottom
+                RoundedRectangle(cornerRadius: cr + 0.5, style: .continuous)
                     .strokeBorder(
                         LinearGradient(
-                            colors: d.borderGradient,
+                            colors: [
+                                Color.clear,
+                                Color.black.opacity(0.10),
+                                Color.black.opacity(0.20),
+                            ],
                             startPoint: .top,
                             endPoint: .bottom
                         ),
-                        lineWidth: d.borderWidth
+                        lineWidth: 0.5
                     )
+                    .padding(-0.5)
             }
         } else {
             // ── Opaque custom theme surface ──
             ZStack {
                 RoundedRectangle(cornerRadius: cr, style: .continuous)
-                    .fill(d.surface.opacity(max(bgOpacity, 0.7)))
+                    .fill(d.surface)
 
+                // Overlay gradient
                 RoundedRectangle(cornerRadius: cr, style: .continuous)
                     .fill(
                         LinearGradient(
@@ -2033,6 +1985,7 @@ struct NotificationView: View {
                         )
                     )
 
+                // Border
                 RoundedRectangle(cornerRadius: cr, style: .continuous)
                     .strokeBorder(
                         LinearGradient(
@@ -2043,6 +1996,7 @@ struct NotificationView: View {
                         lineWidth: d.borderWidth
                     )
             }
+            .opacity(bgOpacity)
         }
     }
 
@@ -2051,7 +2005,90 @@ struct NotificationView: View {
         let s = size
         let d = design
         let isCustomLook = theme.isCustom || d.isGlass
-        if isCustomLook {
+        if d.isGlass || (d.useVibrancy && theme == .system) {
+            // Glass buttons — 3D layered look with highlights and shadows
+            let r = s.buttonRadius
+            let btnPad = s.buttonPadding * 1.2  // 20% taller for glass
+            HStack(spacing: s.elementSpacing * 2) {
+                Button(action: onDismiss) {
+                    Text("Dismiss")
+                        .font(.system(size: s.buttonFontSize, weight: .semibold, design: d.fontDesign))
+                        .foregroundColor(d.secondaryButtonText)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, btnPad)
+                        .background(
+                            ZStack {
+                                // Base fill
+                                RoundedRectangle(cornerRadius: r, style: .continuous)
+                                    .fill(d.secondaryButtonBg)
+                                // Top highlight for 3D lift
+                                RoundedRectangle(cornerRadius: r, style: .continuous)
+                                    .fill(LinearGradient(
+                                        colors: [Color.white.opacity(0.25), Color.clear],
+                                        startPoint: .top,
+                                        endPoint: .center
+                                    ))
+                                // Bottom inner shadow
+                                RoundedRectangle(cornerRadius: r, style: .continuous)
+                                    .fill(LinearGradient(
+                                        colors: [Color.clear, Color.black.opacity(0.08)],
+                                        startPoint: .center,
+                                        endPoint: .bottom
+                                    ))
+                                // 3D border: light top, dark bottom
+                                RoundedRectangle(cornerRadius: r, style: .continuous)
+                                    .strokeBorder(LinearGradient(
+                                        colors: [Color.white.opacity(0.50), d.secondaryButtonBorder, Color.black.opacity(0.10)],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    ), lineWidth: 0.75)
+                            }
+                        )
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onOpen) {
+                    Text("Open in \(editor.displayName)")
+                        .font(.system(size: s.buttonFontSize, weight: .semibold, design: d.fontDesign))
+                        .foregroundColor(d.accentText)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, btnPad)
+                        .background(
+                            ZStack {
+                                // Base gradient
+                                RoundedRectangle(cornerRadius: r, style: .continuous)
+                                    .fill(LinearGradient(
+                                        colors: d.primaryButtonBg,
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    ))
+                                // Top highlight for 3D lift
+                                RoundedRectangle(cornerRadius: r, style: .continuous)
+                                    .fill(LinearGradient(
+                                        colors: [Color.white.opacity(0.30), Color.clear],
+                                        startPoint: .top,
+                                        endPoint: .center
+                                    ))
+                                // Bottom darken for depth
+                                RoundedRectangle(cornerRadius: r, style: .continuous)
+                                    .fill(LinearGradient(
+                                        colors: [Color.clear, Color.black.opacity(0.12)],
+                                        startPoint: .center,
+                                        endPoint: .bottom
+                                    ))
+                                // 3D border
+                                RoundedRectangle(cornerRadius: r, style: .continuous)
+                                    .strokeBorder(LinearGradient(
+                                        colors: [Color.white.opacity(0.35), Color.clear, Color.black.opacity(0.15)],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    ), lineWidth: 0.75)
+                            }
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        } else if isCustomLook {
             HStack(spacing: s.elementSpacing * 2) {
                 Button("Dismiss", action: onDismiss)
                     .buttonStyle(ThemeSecondaryButtonStyle(fontSize: s.buttonFontSize, padding: s.buttonPadding, radius: s.buttonRadius, theme: theme))
@@ -3005,7 +3042,7 @@ if isSettingsMode {
     }
 
     // Step 5: Show notification popup (existing behavior)
-    let notificationSlot = claimSlot()
+    var notificationSlot = claimSlot()
     let dismissTimeout = settings.dismissTimeout
 
     let size = settings.notificationSize
@@ -3050,9 +3087,11 @@ if isSettingsMode {
     }
 
     var dismissTimer: Timer?
+    var slotWatcherSource: DispatchSourceTimer?
 
     func dismiss() {
         dismissTimer?.invalidate()
+        slotWatcherSource?.cancel()
         releaseSlot(notificationSlot)
 
         // Animate out
@@ -3068,6 +3107,7 @@ if isSettingsMode {
 
     func openProject() {
         dismissTimer?.invalidate()
+        slotWatcherSource?.cancel()
         releaseSlot(notificationSlot)
         panel.close()
 
@@ -3108,20 +3148,91 @@ if isSettingsMode {
         }
     }
 
-    let hostingView = NSHostingView(rootView:
-        NotificationView(
-            runtime: runtime,
-            projectName: projectName,
-            editor: editor,
-            isPermission: isPermission,
-            onOpen: openProject,
-            onDismiss: dismiss,
-            dismissTimeout: dismissTimeout
-        )
-        .padding(EdgeInsets(top: 4, leading: 12, bottom: 14, trailing: 12))
+    let notificationContent = NotificationView(
+        runtime: runtime,
+        projectName: projectName,
+        editor: editor,
+        isPermission: isPermission,
+        onOpen: openProject,
+        onDismiss: dismiss,
+        dismissTimeout: dismissTimeout
     )
 
-    panel.contentView = hostingView
+    // For glass/vibrancy: no outer padding — SwiftUI content fills the NSVisualEffectView
+    // exactly, so the .clipShape border aligns with the panel-level blur.
+    // For opaque themes: keep outer padding for visual breathing room.
+    let resolvedDesign = settings.resolvedDesign
+    let needsBlur = resolvedDesign.useVibrancy || resolvedDesign.isGlass
+
+    let hostingView: NSHostingView<AnyView>
+    if needsBlur {
+        hostingView = NSHostingView(rootView: AnyView(notificationContent))
+    } else {
+        hostingView = NSHostingView(rootView: AnyView(
+            notificationContent
+                .padding(EdgeInsets(top: 4, leading: 12, bottom: 14, trailing: 12))
+        ))
+    }
+
+    let cr = CGFloat(settings.cornerRadius)
+    let bgOpacity = settings.panelOpacity
+
+    if needsBlur {
+        // ── Frosted glass: blur + content as SIBLINGS in a container ──
+        // Critical: hosting view must NOT be a subview of NSVisualEffectView,
+        // otherwise the vibrancy effect makes all content translucent.
+        // Instead, both are siblings in a plain container view.
+        //
+        //   NSView (container = contentView)
+        //     ├── NSVisualEffectView (behind — does blur)
+        //     └── NSHostingView (on top — fully opaque content)
+
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.cornerRadius = cr
+        container.layer?.cornerCurve = .continuous
+        container.layer?.masksToBounds = true
+
+        // Blur layer (behind)
+        let visualEffect = NSVisualEffectView()
+        visualEffect.blendingMode = .behindWindow
+        visualEffect.material = resolvedDesign.vibrancyMaterial
+        visualEffect.state = .active  // Force active — panel is never key window
+        visualEffect.translatesAutoresizingMaskIntoConstraints = false
+        // Opacity slider controls the blur layer's transparency
+        visualEffect.alphaValue = CGFloat(bgOpacity)
+        // Stack extra gaussian blur on the layer for that thick frosted look
+        visualEffect.wantsLayer = true
+        if let layer = visualEffect.layer {
+            let blurFilter = CIFilter(name: "CIGaussianBlur", parameters: ["inputRadius": 15])
+            layer.backgroundFilters = [blurFilter as Any]
+        }
+        container.addSubview(visualEffect)
+
+        // SwiftUI content (on top — fully opaque, no vibrancy bleed)
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = .clear
+        container.addSubview(hostingView)
+
+        NSLayoutConstraint.activate([
+            // Blur fills container
+            visualEffect.topAnchor.constraint(equalTo: container.topAnchor),
+            visualEffect.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            visualEffect.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            visualEffect.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            // Hosting view fills container (on top of blur)
+            hostingView.topAnchor.constraint(equalTo: container.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            hostingView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+        ])
+
+        panel.contentView = container
+    } else {
+        // ── Opaque theme: no blur needed, SwiftUI handles everything ──
+        panel.contentView = hostingView
+    }
 
     // Pick target screen
     let targetScreen: NSScreen? = {
@@ -3134,11 +3245,13 @@ if isSettingsMode {
         }
     }()
 
-    if let screen = targetScreen {
+    // Position the panel based on its current slot
+    func positionPanel(slot: Int, animated: Bool = false) {
+        guard let screen = targetScreen else { return }
         let frame = screen.visibleFrame
         let position = settings.screenPosition
         let margin: CGFloat = 16
-        let spacing = CGFloat(notificationSlot) * (panelHeight + 10)
+        let spacing = CGFloat(slot) * (panelHeight + 10)
 
         let x: CGFloat
         let y: CGFloat
@@ -3158,13 +3271,59 @@ if isSettingsMode {
             y = frame.minY + margin + spacing
         }
 
-        panel.setFrameOrigin(NSPoint(x: x, y: y))
+        let newOrigin = NSPoint(x: x, y: y)
+        if animated {
+            let newFrame = NSRect(origin: newOrigin, size: panel.frame.size)
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.3
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                ctx.allowsImplicitAnimation = true
+                panel.animator().setFrame(newFrame, display: true)
+            }
+        } else {
+            panel.setFrameOrigin(newOrigin)
+        }
     }
 
+    positionPanel(slot: notificationSlot)
     panel.orderFrontRegardless()
+
+    // Watch for freed lower slots — slide up to fill gaps
+    // Uses DispatchSourceTimer on main queue for reliable firing within NSApp.run()
+    let watcherSource = DispatchSource.makeTimerSource(queue: .main)
+    watcherSource.schedule(deadline: .now() + 0.5, repeating: 0.5)
+    watcherSource.setEventHandler {
+        guard notificationSlot > 0 else { return }
+        // Check if a lower slot is available
+        for lowerSlot in 0..<notificationSlot {
+            let lockFile = stackDir.appendingPathComponent("slot-\(lowerSlot).lock")
+            var available = false
+            if !FileManager.default.fileExists(atPath: lockFile.path) {
+                available = true
+            } else if let pidStr = try? String(contentsOf: lockFile, encoding: .utf8),
+                      let pid = Int32(pidStr.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                if kill(pid, 0) != 0 {
+                    available = true
+                }
+            }
+            if available {
+                // Claim the lower slot
+                let myPid = "\(ProcessInfo.processInfo.processIdentifier)"
+                try? myPid.write(to: lockFile, atomically: true, encoding: .utf8)
+                // Release old slot
+                releaseSlot(notificationSlot)
+                notificationSlot = lowerSlot
+                positionPanel(slot: lowerSlot, animated: true)
+                break
+            }
+        }
+    }
+    watcherSource.resume()
+    slotWatcherSource = watcherSource
 
     if dismissTimeout > 0 {
         dismissTimer = Timer.scheduledTimer(withTimeInterval: dismissTimeout, repeats: false) { _ in
+            slotWatcherSource?.cancel()
             dismiss()
         }
     }
